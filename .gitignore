@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+
+# macOS
+.DS_Store
+
+# VS Code
+.vscode/
+
+# DWSIM source/build artifacts
+dwsim10/
+bin/
+obj/
+
+# .NET
+*.dll
+*.pdb
+*.deps.json
+*.runtimeconfig.json
+
+# Temporary tests
+test_*.py
+smoke_test.cs
+SmokeTest.csproj
+
+# Generated results
+results/*.csv
