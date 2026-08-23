@@ -19,3 +19,8 @@ This repository contains an automated Python solution for simulating a **Plug Fl
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate   # On Windows: .venv\Scripts\activate
+```
+2. **Run the project**
+```bash
+python run_screening.py
+```
