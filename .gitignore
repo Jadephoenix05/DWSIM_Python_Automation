@@ -29,4 +29,4 @@ smoke_test.cs
 SmokeTest.csproj
 
 # Generated results
-results/*.csv
+results/*.csv.venv/
