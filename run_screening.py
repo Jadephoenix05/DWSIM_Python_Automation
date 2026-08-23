@@ -8,8 +8,13 @@ import os
 import sys
 import csv
 from pathlib import Path
-import pandas as pd  # pyright: ignore[reportMissingModuleSource]
+
+#This code has some parts that cater to a macos (only the plots)
+# set non-interactive backend BEFORE importing pyplot
+import matplotlib
+matplotlib.use("Agg") 
 import matplotlib.pyplot as plt
+import pandas as pd
 from pythonnet import load
 
 # ---------------------------------------------------------------------------
@@ -247,14 +252,12 @@ def simulate_column(stages=15, feed_stage=8, reflux_ratio=2.0, distillate_rate=0
     flowsheet.AddCompound("Isopentane")
     flowsheet.CreateAndAddPropertyPackage("Peng-Robinson (PR)")
 
-    # Streams
     col_feed = flowsheet.AddFlowsheetObject("Material Stream", "Col_Feed")
     distillate = flowsheet.AddFlowsheetObject("Material Stream", "Distillate")
     bottoms = flowsheet.AddFlowsheetObject("Material Stream", "Bottoms")
     cond_duty = flowsheet.AddFlowsheetObject("Energy Stream", "Condenser_Duty")
     reb_duty = flowsheet.AddFlowsheetObject("Energy Stream", "Reboiler_Duty")
 
-    # Feed setup: 50/50 mixture
     feed_type = col_feed.GetType()
     defined_flow_prop = feed_type.GetProperty("DefinedFlow")
     flow_enum = defined_flow_prop.PropertyType
@@ -287,7 +290,6 @@ def simulate_column(stages=15, feed_stage=8, reflux_ratio=2.0, distillate_rate=0
 
     run_solver(flowsheet)
 
-    # Read Distillate purity (Isopentane is lighter: bp ~28°C vs 36°C)
     dist_phases = distillate.GetType().GetProperty("PhasesArray").GetValue(distillate, None)
     dist_comps = dist_phases[0].GetType().GetProperty("Compounds").GetValue(dist_phases[0], None)
     dist_iso_purity = float(dist_comps["Isopentane"].GetType().GetProperty("MoleFraction").GetValue(dist_comps["Isopentane"], None))
@@ -313,7 +315,7 @@ def simulate_column(stages=15, feed_stage=8, reflux_ratio=2.0, distillate_rate=0
 
 
 # ---------------------------------------------------------------------------
-# Part C: Parametric Sweep and Runner
+# Main Execution & Sweeps
 # ---------------------------------------------------------------------------
 def main():
     print("=" * 70)
@@ -399,25 +401,45 @@ def main():
     combined_df.to_csv("results.csv", index=False)
     print("\n✓ Results logged successfully to results.csv")
 
-    # Generate optional plots
+    # 4. Generate Robust Plots
+    print("\nGenerating Parametric Plots...")
     try:
-        valid_pfr = df_pfr[df_pfr["status"] == "Success"]
+        valid_pfr = df_pfr[df_pfr["status"] == "Success"].copy()
+        
         if not valid_pfr.empty:
-            plt.figure(figsize=(8, 5))
-            for t in temperatures:
-                subset = valid_pfr[valid_pfr["feed_temp_k"] == t]
+            # Explicit numeric conversion to ensure clean Matplotlib series
+            valid_pfr["volume_m3"] = pd.to_numeric(valid_pfr["volume_m3"])
+            valid_pfr["conversion_pct"] = pd.to_numeric(valid_pfr["conversion_pct"])
+            valid_pfr["feed_temp_k"] = pd.to_numeric(valid_pfr["feed_temp_k"])
+
+            fig, ax = plt.subplots(figsize=(8, 5))
+            for t in sorted(valid_pfr["feed_temp_k"].unique()):
+                subset = valid_pfr[valid_pfr["feed_temp_k"] == t].sort_values("volume_m3")
                 if not subset.empty:
-                    plt.plot(subset["volume_m3"], subset["conversion_pct"], marker="o", label=f"T = {t} K")
-            plt.title("PFR Isomerization Conversion vs Volume")
-            plt.xlabel("Volume (m³)")
-            plt.ylabel("Conversion (%)")
-            plt.grid(True)
-            plt.legend()
+                    ax.plot(
+                        subset["volume_m3"],
+                        subset["conversion_pct"],
+                        marker="o",
+                        linewidth=2,
+                        label=f"T = {t:.0f} K"
+                    )
+
+            ax.set_title("PFR Isomerization: Conversion vs. Reactor Volume", fontsize=12, fontweight="bold")
+            ax.set_xlabel("Reactor Volume (m³)", fontsize=10)
+            ax.set_ylabel("Conversion (%)", fontsize=10)
+            ax.grid(True, linestyle="--", alpha=0.6)
+            ax.legend(title="Feed Temperature")
             plt.tight_layout()
-            plt.savefig("pfr_parametric_sweep.png")
-            print("✓ Generated plot: pfr_parametric_sweep.png")
+
+            plot_path = PROJECT_ROOT / "pfr_parametric_sweep.png"
+            fig.savefig(str(plot_path), dpi=300)
+            plt.close(fig)
+            print(f"✓ Saved plot successfully: {plot_path}")
+        else:
+            print("⚠ Plotting skipped: No successful PFR data points found.")
+
     except Exception as plot_err:
-        print(f"Could not generate plots: {plot_err}")
+        print(f"✗ Could not generate plots: {type(plot_err).__name__}: {plot_err}")
 
 
 if __name__ == "__main__":
